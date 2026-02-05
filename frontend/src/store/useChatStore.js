@@ -41,7 +41,7 @@ export const useChatStore = create((set, get) => ({
     try {
       const res = await axiosInstance.post(
         `/messages/send/${selectedUser._id}`,
-        messageData
+        messageData,
       );
       set({ messages: [...messages, res.data] });
     } catch (error) {
@@ -50,16 +50,27 @@ export const useChatStore = create((set, get) => ({
   },
 
   subscribeToMessages: () => {
-    const { selectedUser } = get();
-    if (!selectedUser) return;
     const socket = useAuthStore.getState().socket;
 
+    if (!socket) return;
+
+    // Remove old listener to avoid duplicates
+    socket.off("newMessage");
+
     socket.on("newMessage", (newMessage) => {
-      const isMessageSendFromSelectedUser = newMessage.senderId !== selectedUser._id
-      if (!isMessageSendFromSelectedUser) return;
-      set({ messages: [...get().messages, newMessage] });
+      const { selectedUser, messages } = get();
+
+      // Only add message if it belongs to current chat
+      if (
+        selectedUser &&
+        (newMessage.senderId === selectedUser._id ||
+          newMessage.receiverId === selectedUser._id)
+      ) {
+        set({ messages: [...messages, newMessage] });
+      }
     });
   },
+
   unsubscribeFromMessages: () => {
     const socket = useAuthStore.getState().socket;
     socket.off("newMessage");
